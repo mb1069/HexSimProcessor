@@ -12,14 +12,14 @@ dx=pixelsize/magnification;     % Sampling in lateral plane at the sample in um
 NA=1.1;         % Numerical aperture at sample
 n=1.33;         % Refractive index at sample
 lambda=0.525;   % Wavelength in um
-npoints=1000;   % Number of random points
+npoints=3000;   % Number of random points
 rng(1234);      % set random number generator seed
 % eta is the factor by which the illumination grid frequency exceeds the
 % incoherent cutoff, eta=1 for normal SIM, eta=sqrt(3)/2 to maximise
 % resolution without zeros in TF
 % carrier is 2*kmax*eta
 
-import_data = true;    % Whether to import a raw image data, or to simulate a new one
+import_data = false;    % Whether to import a raw image data, or to simulate a new one
 
 eta=1.0;
 axial=false;     % Whether to model axial or in-plane polarised illumination
@@ -53,7 +53,7 @@ end
 
 %% Import or simulate raw image data
 if import_data
-    load('img_256_axial_x2_1000points.mat');
+    load('img_256_axial_x2.mat');
 else
     % Calculate 3d PSF
     clear psf;
@@ -210,8 +210,8 @@ toc
 %% Set up parameters for 3D flythrough
 
 facecolor = [0.9 0.9 0.9];
-frame_num = 180;
-zoom = 1;
+frame_num = 60;
+zoom = 1.35;
 
 % orbit_hor = 180;
 % orbit_ver = 90;
@@ -228,45 +228,59 @@ orbit_ver_array = orbit_ver_array/sum(orbit_ver_array) * 90;
 %% Create video for the raw data, with iso value determined by histogram
 Imax_in=max(imgz(:));
 
-Itot_in=imgz/Imax_in;
+Itot_in=imgz;
 
-isovalue_in = fun_find_isovalue(Itot_in);
+% isovalue_in = fun_find_isovalue(Itot_in);
+isovalue_in = 0.1124;
 
 [xg_in, yg_in, zg_in] = meshgrid(-N/2*dx:dx:(N/2-1)*dx,-N/2*dx:dx:(N/2-1)*dx,-Nz/2*dz:dz:(Nz/2-1)*dz);
-
-fun_flythrough_3D(xg_in,yg_in,zg_in,Itot_in,isovalue_in,facecolor,frame_num,zoom,orbit_hor_array,orbit_ver_array,'Video_input_from_fun');
 
 %% Create video for the reconstructed data, with iso value determined by histogram
 Imax_out=max(imgout(:));
 
-Itot_out=imgout/Imax_out;
+Itot_out=imgout;
 
-isovalue_out = fun_find_isovalue(Itot_out);
+% isovalue_out = fun_find_isovalue(Itot_out);
+isovalue_out = 0.2162;
 
 [xg_out, yg_out, zg_out] = meshgrid(-N*dx/2:dx/2:(N-1)*dx/2,-N*dx/2:dx/2:(N-1)*dx/2,-Nz/2*dz:dz:(Nz/2-1)*dz);
 
-fun_flythrough_3D(xg_out,yg_out,zg_out,Itot_out,isovalue_out,facecolor,frame_num,zoom,orbit_hor_array,orbit_ver_array,'Video_output_from_fun');
+fun_flythrough_3D_x2(xg_in,yg_in,zg_in,Itot_in,isovalue_in,[0 1 1],xg_out,yg_out,zg_out,Itot_out,isovalue_out,[1 1 0],frame_num,zoom,orbit_hor_array,orbit_ver_array,'Video_output_from_fun_test');
 
 %% User-defined functions in use
 
-function fun_flythrough_3D(X, Y, Z, img, iso_value, facecolor, frame_num, zoom_value, orbit_hor_array, orbit_ver_array, vidfile_name)
+function fun_flythrough_3D_x2(X1, Y1, Z1, img1, iso_value1, facecolor1, X2, Y2, Z2, img2, iso_value2, facecolor2, frame_num, zoom_value, orbit_hor_array, orbit_ver_array, vidfile_name)
 
     f = figure();
 
     clf();
 
     % whitebg('black');
+
+    subplot(1,2,1);
     set(gca,'Color','black');
+    set(gca,'Visible','off');
     set(gcf,'Color',[0.1,0.1,0.1])
-
-    set(f,'renderer','opengl')
-
-    p=patch(isosurface(X,Y,Z,img,iso_value),'FaceColor',facecolor,'EdgeColor','none');
-    isonormals(X,Y,Z,img,p);
+    set(f,'renderer','opengl')    
+    p1=patch(isosurface(X1,Y1,Z1,img1,iso_value1),'FaceColor',facecolor1,'EdgeColor','none');
+    isonormals(X1,Y1,Z1,img1,p1);
     daspect([1 1 1])
     view(0,0); 
     axis tight
-    cam = camlight('right');
+    cam1 = camlight('right');
+    lighting phong
+
+    subplot(1,2,2)
+    set(gca,'Color','black');
+    set(gca,'Visible','off');
+    set(gcf,'Color',[0.1,0.1,0.1])
+    set(f,'renderer','opengl')
+    p2=patch(isosurface(X2,Y2,Z2,img2,iso_value2),'FaceColor',facecolor2,'EdgeColor','none');
+    isonormals(X2,Y2,Z2,img2,p2);
+    daspect([1 1 1])
+    view(0,0); 
+    axis tight
+    cam2 = camlight('right');
     lighting phong
 
     % Initialize video
@@ -277,10 +291,15 @@ function fun_flythrough_3D(X, Y, Z, img, iso_value, facecolor, frame_num, zoom_v
     for idx = 1:frame_num
         % Update current view.
 %         camorbit(orbit_hor/frame_num,orbit_ver/frame_num);
+        subplot(1,2,1);
         camorbit(orbit_hor_array(idx),orbit_ver_array(idx));
         camzoom(nthroot(zoom_value,frame_num));
-        camlight(cam,'right');
-
+        camlight(cam1,'right');
+        drawnow;
+        subplot(1,2,2);
+        camorbit(orbit_hor_array(idx),orbit_ver_array(idx));
+        camzoom(nthroot(zoom_value,frame_num));
+        camlight(cam2,'right');
         drawnow;
 
     %     pause(1/myVideo.FrameRate);
@@ -290,10 +309,15 @@ function fun_flythrough_3D(X, Y, Z, img, iso_value, facecolor, frame_num, zoom_v
     
     for idx2 = frame_num:-1:1
 %         camorbit(orbit_hor/frame_num,-orbit_ver/frame_num);
+        subplot(1,2,1);
         camorbit(orbit_hor_array(idx2),-orbit_ver_array(idx2));
-        camzoom(nthroot(1/zoom_value,frame_num));
-        camlight(cam,'right');
-
+%         camzoom(nthroot(zoom_value,frame_num));
+        camlight(cam1,'right');
+        drawnow;
+        subplot(1,2,2);
+        camorbit(orbit_hor_array(idx2),-orbit_ver_array(idx2));
+%         camzoom(nthroot(zoom_value,frame_num));
+        camlight(cam2,'right');
         drawnow;
 
     %     pause(1/myVideo.FrameRate);
@@ -303,10 +327,15 @@ function fun_flythrough_3D(X, Y, Z, img, iso_value, facecolor, frame_num, zoom_v
     
     for idx3 = 1:frame_num
 %         camorbit(orbit_hor/frame_num,-orbit_ver/frame_num);
+        subplot(1,2,1);
         camorbit(orbit_hor_array(idx3),-orbit_ver_array(idx3));
-        camzoom(nthroot(1/zoom_value,frame_num));
-        camlight(cam,'right');
-
+        camzoom(1/nthroot(zoom_value,frame_num));
+        camlight(cam1,'right');
+        drawnow;
+        subplot(1,2,2);
+        camorbit(orbit_hor_array(idx3),-orbit_ver_array(idx3));
+        camzoom(1/nthroot(zoom_value,frame_num));
+        camlight(cam2,'right');
         drawnow;
 
     %     pause(1/myVideo.FrameRate);
@@ -316,10 +345,15 @@ function fun_flythrough_3D(X, Y, Z, img, iso_value, facecolor, frame_num, zoom_v
     
     for idx4 = frame_num:-1:1
 %         camorbit(orbit_hor/frame_num,-orbit_ver/frame_num);
+        subplot(1,2,1);
         camorbit(orbit_hor_array(idx4),orbit_ver_array(idx4));
-        camzoom(nthroot(1/zoom_value,frame_num));
-        camlight(cam,'right');
-
+%         camzoom(1/nthroot(zoom_value,frame_num));
+        camlight(cam1,'right');
+        drawnow;
+        subplot(1,2,2);
+        camorbit(orbit_hor_array(idx4),orbit_ver_array(idx4));
+%         camzoom(1/nthroot(zoom_value,frame_num));
+        camlight(cam2,'right');
         drawnow;
 
     %     pause(1/myVideo.FrameRate);
